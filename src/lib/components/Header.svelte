@@ -3,6 +3,7 @@
 	import { page } from '$app/stores';
 	import { onDestroy, onMount } from 'svelte';
 	import { getSupabase } from '$lib/supabase';
+	import { authUser } from '$lib/auth-store';
 	import History from '@lucide/svelte/icons/history';
 	import Calendar from '@lucide/svelte/icons/calendar-days';
 	import Bell from '@lucide/svelte/icons/bell';
@@ -10,19 +11,20 @@
 	const isAuthPage = $derived.by(() => {
 		const path = $page.url.pathname;
 		return (
-			path === '/auth/signin' ||
-			path === '/auth/signup' ||
+			path === '/signin' ||
+			path === '/signup' ||
 			path === '/auth/forgotpw' ||
+			path === '/auth/resetpw' ||
 			path === '/confirmation'
 		);
 	});
 
 	let hasUser = $state(false);
 	let userName = $state('User');
-	let sub;
+	let unsubUser = null;
 
-	async function syncUser(sessionUser) {
-		if (!sessionUser) {
+	async function syncUser(user) {
+		if (!user) {
 			hasUser = false;
 			userName = 'User';
 			return;
@@ -36,34 +38,25 @@
 		const { data: profile, error: profileError } = await supabase
 			.from('profiles')
 			.select('nickname, first_name')
-			.eq('id', sessionUser.id)
+			.eq('id', user.id)
 			.single();
 
 		if (profileError) {
-			userName = sessionUser.email ?? 'User';
+			userName = user.email ?? 'User';
 			return;
 		}
 
-		userName = profile?.nickname || profile?.first_name || sessionUser.email;
+		userName = profile?.nickname || profile?.first_name || user.email;
 	}
 
 	onMount(async () => {
-		const supabase = getSupabase();
-		if (!supabase) return;
-
-		const {
-			data: { session }
-		} = await supabase.auth.getSession();
-		await syncUser(session?.user ?? null);
-
-		const { data } = supabase.auth.onAuthStateChange(async (_event, session2) => {
-			await syncUser(session2?.user ?? null);
+		unsubUser = authUser.subscribe(async (user) => {
+			await syncUser(user);
 		});
-		sub = data?.subscription;
 	});
 
 	onDestroy(() => {
-		sub?.unsubscribe?.();
+		unsubUser?.();
 	});
 
 	async function signOut() {
@@ -71,7 +64,7 @@
 		if (supabase) await supabase.auth.signOut();
 		hasUser = false;
 		userName = 'User';
-		goto('/auth/signin');
+		await goto('/signin');
 	}
 </script>
 
@@ -182,6 +175,11 @@
 
 		p {
 			font-size: 14px;
+		}
+
+		span {
+			font-size: 14px;
+			font-weight: bold;
 		}
 
 		.welcome {

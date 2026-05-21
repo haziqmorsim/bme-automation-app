@@ -5,6 +5,7 @@
 	import Search from '@lucide/svelte/icons/search';
 	import Close from '@lucide/svelte/icons/x';
 	import { supabase } from '$lib/supabase';
+	import { requireUser } from '$lib/auth-guard';
 
 	let users = [];
 	let errorMsg = '';
@@ -38,14 +39,10 @@
 	});
 
 	onMount(async () => {
-		const {
-			data: { user }
-		} = await supabase.auth.getUser();
+		const auth = await requireUser();
+		if (!auth) return;
 
-		if (!user) {
-			goto('/auth/signin');
-			return;
-		}
+		const { supabase, user } = auth;
 
 		const { data, error } = await supabase
 			.from('profiles')

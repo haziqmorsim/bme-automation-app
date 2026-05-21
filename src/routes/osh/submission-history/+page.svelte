@@ -1,8 +1,9 @@
 <script>
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
-	import { supabase } from '$lib/supabase';
+	import { supabase, waitForSession } from '$lib/supabase';
 	import { onMount } from 'svelte';
+	import { requireUser } from '$lib/auth-guard';
 
 	let submissions = $state([]);
 	let errorMsg = $state('');
@@ -64,14 +65,11 @@
 		submissions = [];
 
 		try {
-			const {
-				data: { user }
-			} = await supabase.auth.getUser();
+			const auth = await requireUser();
+			if (!auth) return;
 
-			if (!user) {
-				goto('/auth/signin');
-				return;
-			}
+			const { supabase, user } = auth;
+			if (!user) throw new Error('Not signed in.');
 
 			const [tbmRes, ppeRes, hkpRes] = await Promise.all([
 				supabase

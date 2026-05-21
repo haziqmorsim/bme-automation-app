@@ -1,21 +1,21 @@
 <script>
-	import { supabase } from '$lib/supabase';
+	import { requireUser } from '$lib/auth-guard';
 	import { goto } from '$app/navigation';
 	import { menuSections } from '$lib/data/menu';
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 
 	let allowedMenuAccess = [];
 	let visibleSections = [];
 	let errorMsg = '';
+	let authUnsub = null;
 
 	function computeVisible() {
 		const allowedRoutes = new Set(allowedMenuAccess ?? []);
-		const isAdmin = allowedRoutes.size === 0 ? false : false; // optional, see note below
+		const isAdmin = allowedRoutes.size === 0 ? false : false;
 
 		visibleSections = menuSections
 			.map((section) => {
 				const items = (section.items ?? []).filter((item) => {
-					// show item only if route is allowed
 					return allowedRoutes.has(item.route);
 				});
 				return { ...section, items };
@@ -23,17 +23,18 @@
 			.filter((section) => section.items.length > 0);
 	}
 
-	onMount(async () => {
-		const { data: auth } = await supabase.auth.getUser();
-		if (!auth?.user) {
-			goto('/auth/signin');
-			return;
-		}
+	async function loadMenu() {
+		errorMsg = '';
+
+		const auth = await requireUser();
+		if (!auth) return;
+
+		const { supabase, user } = auth;
 
 		const { data: profile, error } = await supabase
 			.from('profiles')
 			.select('menu_access')
-			.eq('id', auth.user.id)
+			.eq('id', user.id)
 			.single();
 
 		if (error) {
@@ -43,6 +44,30 @@
 
 		allowedMenuAccess = profile?.menu_access ?? [];
 		computeVisible();
+	}
+
+	onMount(async () => {
+		const auth = await requireUser();
+		if (!auth) return;
+
+		const { supabase } = auth;
+
+		await loadMenu();
+
+		const { data } = supabase.auth.onAuthStateChange(async (_event, session) => {
+			if (!session?.user) {
+				await goto('/signin');
+				return;
+			}
+
+			await loadMenu();
+		});
+
+		authUnsub = () => data.subscription.unsubscribe();
+	});
+
+	onDestroy(() => {
+		if (authUnsub) authUnsub();
 	});
 </script>
 

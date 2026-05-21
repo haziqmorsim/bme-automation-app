@@ -1,42 +1,64 @@
 <script>
 	import './layout.css';
-	import { page } from '$app/stores';
-	import { navigating } from '$app/stores';
+	import { page, navigating } from '$app/stores';
 	import Header from '$lib/components/Header.svelte';
 	import Footer from '$lib/components/Footer.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import { spinner } from '$lib/stores/spinner.js';
 	import { onMount, onDestroy } from 'svelte';
+	import { initAuthStore, destroyAuthStore } from '$lib/auth-store';
 	import { getSupabase } from '$lib/supabase';
 	import { goto } from '$app/navigation';
-
-	/** @type {null | (() => void)} */
-	let authUnsub = null;
 
 	/** @type {{ children: any }} */
 	const { children } = $props();
 
 	const MIN_SPINNER_MS = 400;
+	const INACTIVITY_MS = 30 * 60 * 1000;
+
 	let spinnerActive = $state(false);
 	/** @type {ReturnType<typeof setTimeout> | null} */
 	let hideTimer = null;
 	/** @type {null | (() => void)} */
 	let navUnsub = null;
+	let inactivityTimer = null;
 
-	onMount(() => {
+	const isAuthPage = $derived.by(() => {
+		const path = $page.url.pathname;
+		return (
+			path === '/signin' ||
+			path === '/signup' ||
+			path === '/auth/forgotpw' ||
+			path === '/auth/resetpw' ||
+			path == '/confirmation'
+		);
+	});
+
+	async function handleSessionTimeout() {
+		if (isAuthPage) return;
+
 		const supabase = getSupabase();
 		if (supabase) {
-			const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-				if (
-					!session &&
-					$page.url.pathname !== '/auth/signin' &&
-					$page.url.pathname !== '/auth/signup'
-				) {
-					goto('/auth/signin');
-				}
-			});
-			authUnsub = () => data.subscription.unsubscribe();
+			await supabase.auth.signOut();
 		}
+
+		await goto('/signin');
+	}
+
+	function resetInactivityTimer() {
+		if (isAuthPage) return;
+
+		if (inactivityTimer) {
+			clearTimeout(inactivityTimer);
+		}
+
+		inactivityTimer = setTimeout(() => {
+			handleSessionTimeout();
+		}, INACTIVITY_MS);
+	}
+
+	onMount(() => {
+		initAuthStore();
 
 		navUnsub = navigating.subscribe((nav) => {
 			if (nav) {
@@ -52,13 +74,28 @@
 				}, MIN_SPINNER_MS);
 			}
 		});
+
+		const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+
+		for (const events of activityEvents) {
+			window.addEventListener(event, resetInactivityTimer, true);
+		}
+
+		resetInactivityTimer();
+
+		return () => {
+			for (const events of activityEvents) {
+				window.removeEventListener(event, resetInactivityTimer, true);
+			}
+		};
 	});
 
 	onDestroy(() => {
-		if (authUnsub) authUnsub();
 		// @ts-ignore
 		if (navUnsub) navUnsub();
 		if (hideTimer) clearTimeout(hideTimer);
+		if (inactivityTimer) clearTimeout(inactivityTimer);
+		destroyAuthStore();
 	});
 </script>
 
@@ -70,13 +107,17 @@
 <Spinner active={$spinner || spinnerActive} />
 
 <div class="app-shell">
-	<Header />
+	{#if !isAuthPage}
+		<Header />
+	{/if}
 
 	<main class="app-main">
 		{@render children()}
 	</main>
 
-	<Footer />
+	{#if !isAuthPage}
+		<Footer />
+	{/if}
 </div>
 
 <style>

@@ -2,6 +2,8 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { getSupabase } from '$lib/supabase';
+	import { use } from 'bcrypt/promises';
+	import { authUser } from '$lib/auth-store';
 
 	const supabase = getSupabase();
 
@@ -25,10 +27,17 @@
 		});
 		unsub = () => data.subscription.unsubscribe();
 
-		const { data: sessionData } = await supabase.auth.getSession();
-		if (sessionData?.session) {
-			canReset = true;
-		}
+		const unsubUser = authUser.subscribe((user) => {
+			if (user) {
+				canReset = true;
+			}
+		});
+
+		const oldUnsub = unsub;
+		unsub = () => {
+			oldUnsub?.();
+			unsubUser?.();
+		};
 	});
 
 	onDestroy(() => {
@@ -62,7 +71,7 @@
 
 			await supabase.auth.signOut();
 
-			goto('/auth/signin');
+			goto('/signin');
 		} catch (err) {
 			errorMsg = err?.message ?? String(err);
 		} finally {

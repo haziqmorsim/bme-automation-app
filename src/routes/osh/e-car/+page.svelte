@@ -3,9 +3,10 @@
 	import FileText from '@lucide/svelte/icons/file-text';
 	import FileClock from '@lucide/svelte/icons/file-clock';
 	import Check from '@lucide/svelte/icons/check';
-	import { supabase } from '$lib/supabase';
+	import { supabase, waitForSession } from '$lib/supabase';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { requireUser } from '$lib/auth-guard';
 
 	let showProjectModal = false;
 	let projects = [];
@@ -53,9 +54,10 @@
 		saving = true;
 
 		try {
-			const { data: auth, error: authErr } = await withTimeout(supabase.auth.getUser(), 15000);
-			if (authErr) throw authErr;
-			const user = auth?.user;
+			const auth = await requireUser();
+			if (!auth) return;
+
+			const { supabase, user } = auth;
 			if (!user) throw new Error('Not signed in.');
 
 			const { data: profile, error: profileError } = await withTimeout(
@@ -159,13 +161,10 @@
 	}
 
 	onMount(async () => {
-		const {
-			data: { user }
-		} = await supabase.auth.getUser();
-		if (!user) {
-			goto('/auth/signin');
-			return;
-		}
+		const auth = await requireUser();
+		if (!auth) return;
+
+		const { supabase, user } = auth;
 
 		const { data, error } = await supabase
 			.from('profiles')

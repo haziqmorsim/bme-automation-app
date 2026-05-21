@@ -4,6 +4,7 @@
 	import CloudDownload from '@lucide/svelte/icons/cloud-download';
 	import Close from '@lucide/svelte/icons/x';
 	import { supabase } from '$lib/supabase';
+	import { requireUser } from '$lib/auth-guard';
 
 	const startYear = 2026;
 	const endYear = 2028;
@@ -146,9 +147,10 @@
 		submissionStatus = { tbm: false, ppe: false, hkp: false };
 
 		try {
-			const {
-				data: { user }
-			} = await supabase.auth.getUser();
+			const auth = await requireUser();
+			if (!auth) return;
+
+			const { supabase, user } = auth;
 
 			if (!user) {
 				submissionsError = 'Please sign in to view submissions.';
@@ -204,9 +206,10 @@
 		dayStatusByDate = {};
 
 		try {
-			const {
-				data: { user }
-			} = await supabase.auth.getUser();
+			const auth = await requireUser();
+			if (!auth) return;
+
+			const { supabase, user } = auth;
 
 			if (!user) {
 				monthStatusError = 'Please sign in to view submissions.';

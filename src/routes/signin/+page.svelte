@@ -1,5 +1,6 @@
 <script>
 	import { supabase } from '$lib/supabase';
+	import { authUser } from '$lib/auth-store';
 	import { goto } from '$app/navigation';
 
 	let email = '';
@@ -18,7 +19,23 @@
 			return;
 		}
 
-		const user = data?.user;
+		const user =
+			data?.user ??
+			data?.session?.user ??
+			(await new Promise((resolve) => {
+				const unsub = authUser.subscribe((u) => {
+					if (u) {
+						unsub();
+						resolve(u);
+					}
+				});
+
+				setTimeout(() => {
+					unsub();
+					resolve(null);
+				}, 8000);
+			}));
+
 		if (user) {
 			const meta = user.user_metadata ?? {};
 
@@ -119,7 +136,8 @@
 		display: grid;
 		align-items: center;
 		justify-content: center;
-		height: 70vh;
+		min-height: 100vh;
+		margin: 30px 0;
 	}
 
 	button {

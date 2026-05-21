@@ -4,9 +4,10 @@
 	import CloudDownload from '@lucide/svelte/icons/cloud-download';
 	import Search from '@lucide/svelte/icons/search';
 	import Close from '@lucide/svelte/icons/x';
-	import { supabase } from '$lib/supabase';
+	import { supabase, waitForSession } from '$lib/supabase';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { requireUser } from '$lib/auth-guard';
 
 	let projects = [];
 	let errorMsg = '';
@@ -85,14 +86,11 @@
 	});
 
 	onMount(async () => {
-		const {
-			data: { user }
-		} = await supabase.auth.getUser();
+		const auth = await requireUser();
+		if (!auth) return;
 
-		if (!user) {
-			goto('/auth/signin');
-			return;
-		}
+		const { supabase, user } = auth;
+		if (!user) throw new Error('Not signed in.');
 
 		const { data: profileData, error: profileError } = await supabase
 			.from('profiles')

@@ -1,7 +1,8 @@
 <script>
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { supabase } from '$lib/supabase';
+	import { getSupabase, supabase, waitForSession } from '$lib/supabase';
+	import { requireUser } from '$lib/auth-guard';
 
 	import ChevronsLeft from '@lucide/svelte/icons/chevrons-left';
 	import ChevronsRight from '@lucide/svelte/icons/chevrons-right';
@@ -46,14 +47,9 @@
 	}
 
 	async function ensureSignedIn() {
-		const {
-			data: { session }
-		} = await supabase.auth.getSession();
-		if (!session?.user) {
-			goto('/auth/signin');
-			return null;
-		}
-		return session.user;
+		const auth = await requireUser();
+		if (!auth) return null;
+		return auth.user;
 	}
 
 	async function loadAttendance() {

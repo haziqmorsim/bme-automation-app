@@ -1,9 +1,10 @@
 <script>
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { supabase } from '$lib/supabase';
+	import { supabase, waitForSession } from '$lib/supabase';
 	import { menuSections } from '$lib/data/menu';
 	import Check from '@lucide/svelte/icons/check';
+	import { requireUser } from '$lib/auth-guard';
 
 	let users = [];
 	let errorMsg = '';
@@ -115,13 +116,10 @@
 	};
 
 	onMount(async () => {
-		const {
-			data: { user }
-		} = await supabase.auth.getUser();
-		if (!user) {
-			goto('/auth/signin');
-			return;
-		}
+		const auth = await requireUser();
+		if (!auth) return;
+
+		const { supabase, user } = auth;
 
 		const { data, error } = await supabase
 			.from('profiles')
