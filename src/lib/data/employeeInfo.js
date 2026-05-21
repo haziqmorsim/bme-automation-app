@@ -89,7 +89,7 @@ export const employeeInfo = {
 			title: 'Aftersales Coordinator',
 			email: 'suhaila@boilermech.com'
 		},
-		{ name: 'Wong Chih Chung', title: 'Manageer', email: 'wongcc@boilermech.com' }
+		{ name: 'Wong Chih Chung', title: 'Manager', email: 'wongcc@boilermech.com' }
 	],
 	'Business Development': [
 		{ name: 'Chan Kong Yap', title: 'Technical Engineer', email: 'chanky@boilermech.com' },
